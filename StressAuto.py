@@ -44,7 +44,6 @@ class SubProc():
         if location:
             self.process_configuration.append(location + process_name if location else './{}'.format(process_name))
 
-    def __set__runswitches__(self):
 
 
 class Stress:
