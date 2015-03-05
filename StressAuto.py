@@ -33,23 +33,40 @@ def kill_stack_processes(proc_stack):
 
 
 class SubProc():
-    process_configuration = []
-    __process__ = None
-    process_switches = {}
+    """
+        Process configuration:
+        location : location string
+        process_name : process name
+        switches : { switch_name : (enabled, switch_flag, value }
+    """
+    process_configuration = {'location': '',
+                             'process_name': '',
+                             'switches': {}}
+    # __process__ = None
 
     def __init__(self, process_name, location=None, switches=None):
-        self.__set_location__(location, process_name)
+        self.process_configuration['process_name'] = process_name
+        self.__set_location__(location)
         self.process_switches = switches
 
-    def __set_location__(self, process_name, location=None):
-        if location:
-            self.process_configuration.append(location + process_name if location else './{}'.format(process_name))
+    def __set_location__(self, location=None):
+        self.process_configuration['location'] = location if location else ''
 
     def get_location(self):
-        return self.process_configuration[0]
+        return self.process_configuration['location']
 
-    def __set_process_switches__(self, switches):
-        pass
+    def __enable_process_switches__(self, switch_names):
+        for name in switch_names:
+            try:
+                self.process_configuration['switches'][name][0] = 1
+            except ValueError:
+                raise ValueError('No such switch exists!')
+
+    def __set_switch_value__(self, switch_name, value):
+        try:
+            self.process_configuration['switches'][switch_name][2] = value
+        except ValueError:
+            raise ValueError('No such switch exists!')
 
 
 class Stress:
