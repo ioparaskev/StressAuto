@@ -70,6 +70,7 @@ class SubProc():
         except KeyError:
             raise ValueError('No such switch exists!')
 
+    #todo change active switching to ommit value needless flags
     def get_active_switches(self):
         active_switches = []
         for switch in self.process_configuration['switches'].keys():
@@ -89,6 +90,7 @@ class SubProc():
         return tuple(['{0}/{1}'.format(path,
                                        self.process_configuration['process_name'])])
 
+    #todo add configuration checking first
     def run(self):
         prog = self.get_absolute_program_location()
         active_switches = self.get_active_switches()
@@ -106,6 +108,16 @@ class SubProc():
 
 class Stress:
     stress_configuration = ['./stress']
+    #todo should not use '' because of conflict with conf checking
+    switches = {'verbose': [True, '-v', ''],
+                'quiet': [None, '-q', ''],
+                'dry': [None, '-n', ''],
+                'timeout': [None, '-t', None],
+                'cpu': [None, '-c', None],
+                'io': [None, '-i', None],
+                'vm': [None, '-m', None],
+                'hdd': [None, '-d', None]
+                }
     __process__ = None
 
     def __init__(self, stress_location=''):
@@ -142,10 +154,10 @@ class Stress:
 class CpuLimit(SubProc):
     __process__ = None
     switches = {'pid': [True, '-p', None],
-                'exe': [False, '-e', None],
-                'path': [False, '-P', None],
+                'exe': [None, '-e', None],
+                'path': [None, '-P', None],
                 'limit': [True, '-l', '1'],
-                'lazy': [True, '-z', ' '],
+                'lazy': [True, '-z', ''],
                 'verbose': [True, '-v', '']
                 }
 
