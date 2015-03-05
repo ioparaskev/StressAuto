@@ -35,15 +35,21 @@ def kill_stack_processes(proc_stack):
 class SubProc():
     process_configuration = []
     __process__ = None
+    process_switches = {}
 
-    def __init__(self, process_name, location=None):
+    def __init__(self, process_name, location=None, switches=None):
         self.__set_location__(location, process_name)
-        self.__set__runswitches__()
+        self.process_switches = switches
 
     def __set_location__(self, process_name, location=None):
         if location:
             self.process_configuration.append(location + process_name if location else './{}'.format(process_name))
 
+    def get_location(self):
+        return self.process_configuration[0]
+
+    def __set_process_switches__(self, switches):
+        pass
 
 
 class Stress:
@@ -82,14 +88,11 @@ class Stress:
         self.__process__.kill()
 
 
-class CpuLimit:
+class CpuLimit(SubProc):
     cpu_limit_configuration = ['./cpulimit']
     __process__ = None
 
-    def set_cpu_limit_configuration(self, pid=None, limit=1, cpu_limit_location=None):
-        if cpu_limit_location:
-            absolute_path = cpu_limit_location + self.cpu_limit_configuration[0].strip('.\\')
-            self.cpu_limit_configuration[0] = absolute_path
+    def set_cpu_limit_configuration(self, pid=None, limit=1):
         self.cpu_limit_configuration.extend(('-l', str(limit), '-p', str(pid)))
 
     def get_cpu_limit_configuration(self):
@@ -147,7 +150,7 @@ class LimitedStress():
     __tool_location__ = {}
     __limit__ = 1
 
-    def __init__(self, limit=1, timeout=None, tool_location=None):
+    def __init__(self, limit=1, timeout=None, tool_location={}):
         self.__tool_location__ = tool_location
         self.__limit__ = limit
 
@@ -165,7 +168,7 @@ class LimitedStress():
 
     def run_stress(self):
         stress = Stress()
-        stress.set_stress_configuration(cpu_workers=1, stress_lo)
+        stress.set_stress_configuration(cpu_workers=1)
         stress_run = stress.run()
         self.add_process_to_stack(stress)
 
@@ -179,9 +182,8 @@ class LimitedStress():
         return pid
 
     def fork_to_cpulimit(self, pid):
-        cpulimit = CpuLimit()
-        cpulimit.set_cpu_limit_configuration(pid=pid, limit=self.__limit__,
-                                             cpu_limit_location=self.__tool_location__.get('cpulimit', ''))
+        cpulimit = CpuLimit('cpulimit', location=self.__tool_location__.get('cpulimit', ''))
+        cpulimit.set_cpu_limit_configuration(pid=pid, limit=self.__limit__)
         cpulimit.run()
         self.add_process_to_stack(cpulimit)
         self.add_pid_to_stack(pid)
