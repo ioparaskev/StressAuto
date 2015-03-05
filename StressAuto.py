@@ -66,7 +66,7 @@ class SubProc():
         try:
             self.process_configuration['switches'][switch_name][2] = str(value)
         except ValueError:
-            raise ValueError('No such switch exists!')
+            raise ValueError('Error in setting switch value!')
         except KeyError:
             raise ValueError('No such switch exists!')
 
