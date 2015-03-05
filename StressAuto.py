@@ -42,12 +42,12 @@ class SubProc():
     process_configuration = {'location': '',
                              'process_name': '',
                              'switches': {}}
-    # __process__ = None
+    __process__ = None
 
     def __init__(self, process_name, location=None, switches=None):
         self.process_configuration['process_name'] = process_name
         self.__set_location__(location)
-        self.process_switches = switches
+        self.process_configuration['switches'] = switches
 
     def __set_location__(self, location=None):
         self.process_configuration['location'] = location if location else ''
@@ -58,15 +58,51 @@ class SubProc():
     def __enable_process_switches__(self, switch_names):
         for name in switch_names:
             try:
-                self.process_configuration['switches'][name][0] = 1
+                self.process_configuration['switches'][name][0] = True
             except ValueError:
                 raise ValueError('No such switch exists!')
 
     def __set_switch_value__(self, switch_name, value):
         try:
-            self.process_configuration['switches'][switch_name][2] = value
+            self.process_configuration['switches'][switch_name][2] = str(value)
         except ValueError:
             raise ValueError('No such switch exists!')
+        except KeyError:
+            raise ValueError('No such switch exists!')
+
+    def get_active_switches(self):
+        active_switches = []
+        for switch in self.process_configuration['switches'].keys():
+            if self.process_configuration['switches'][switch][0]:
+                active_switches.extend((self.process_configuration['switches'][switch][1],
+                                        self.process_configuration['switches'][switch][2]))
+        return tuple(active_switches)
+
+    def get_absolute_program_location(self):
+        if self.process_configuration['location'] is 'global':
+            #app is installed on system
+            return self.process_configuration['process_name']
+
+        #if path append path, else ./ local run
+        path = self.process_configuration['location'] \
+            if self.process_configuration['location'] else '.'
+        return tuple(['{0}/{1}'.format(path,
+                                       self.process_configuration['process_name'])])
+
+    def run(self):
+        prog = self.get_absolute_program_location()
+        active_switches = self.get_active_switches()
+        print(prog + active_switches)
+        self.__process__ = subprocess.Popen(prog + active_switches,
+                                            stdout=subprocess.PIPE)
+        return self.__process__
+
+    def kill(self, verbose=None):
+        if verbose:
+            print('Killing {0} process with pid {`}'.
+                  format(self.process_configuration['process_name'],
+                         self.__process__.pid))
+        self.__process__.kill()
 
 
 class Stress:
@@ -106,25 +142,36 @@ class Stress:
 
 
 class CpuLimit(SubProc):
-    cpu_limit_configuration = ['./cpulimit']
     __process__ = None
+    switches = {'pid': [True, '-p', None],
+                'exe': [False, '-e', None],
+                'path': [False, '-P', None],
+                'limit': [True, '-l', '1'],
+                'lazy': [True, '-z', ' '],
+                'verbose': [True, '-v', '']
+                }
 
-    def set_cpu_limit_configuration(self, pid=None, limit=1):
-        self.cpu_limit_configuration.extend(('-l', str(limit), '-p', str(pid)))
+    def __init__(self, process_name='cpulimit', location=None, switches=None):
+        SubProc.__init__(self, process_name, location,
+                         switches=switches if switches else self.switches)
+
+    def set_cpulimit_pid_limit(self, pid=None, limit=1):
+        SubProc.__set_switch_value__(self, 'pid', pid)
+        SubProc.__set_switch_value__(self, 'limit', limit)
 
     def get_cpu_limit_configuration(self):
-        return self.cpu_limit_configuration
+        return self.switches
 
-    def run(self):
-        # print(self.get_cpu_limit_configuration())
-        process = subprocess.Popen(self.get_cpu_limit_configuration(), stdout=subprocess.PIPE)
-        self.__process__ = process
-        print(self.__process__.pid)
-        return process
+    # def run(self):
+    #     # print(self.get_cpu_limit_configuration())
+    #     process = subprocess.Popen(self.get_cpu_limit_configuration(), stdout=subprocess.PIPE)
+    #     self.__process__ = process
+    #     print(self.__process__.pid)
+    #     return process
 
-    def kill(self):
-        print('Killing process with pid {}'.format(self.__process__.pid))
-        self.__process__.kill()
+    # def kill(self):
+    #     print('Killing process with pid {}'.format(self.__process__.pid))
+    #     self.__process__.kill()
 
 
 class TopGrep():
@@ -199,8 +246,9 @@ class LimitedStress():
         return pid
 
     def fork_to_cpulimit(self, pid):
-        cpulimit = CpuLimit('cpulimit', location=self.__tool_location__.get('cpulimit', ''))
-        cpulimit.set_cpu_limit_configuration(pid=pid, limit=self.__limit__)
+        cpulimit = CpuLimit() #,location=self.__tool_location__.get('cpulimit', ''))
+        cpulimit.set_cpulimit_pid_limit(pid=pid, limit=self.__limit__)
+        # cpulimit.set_cpu_limit_configuration(pid=pid, limit=self.__limit__)
         cpulimit.run()
         self.add_process_to_stack(cpulimit)
         self.add_pid_to_stack(pid)
@@ -262,6 +310,8 @@ class LimitedStress():
 if __name__ == '__main__':
 
     lstress = LimitedStress(60)
+    # LimitedStress(type=cpu, limit=blah, timeout=30,
+    #               tool_location={stress='global', cpulimit='global'})
     lstress.run_and_keep_the_limit()
 
 
