@@ -92,7 +92,6 @@ class SubProc():
     def run(self):
         prog = self.get_absolute_program_location()
         active_switches = self.get_active_switches()
-        print(prog + active_switches)
         self.__process__ = subprocess.Popen(prog + active_switches,
                                             stdout=subprocess.PIPE)
         return self.__process__
@@ -131,7 +130,6 @@ class Stress:
                 self.stress_configuration.extend((x, str(switches[x])))
 
     def run(self):
-        # print(self.get_stress_configuration())
         process = subprocess.Popen(self.get_stress_configuration(), stdout=subprocess.PIPE)
         self.__process__ = process
         return process
@@ -161,17 +159,6 @@ class CpuLimit(SubProc):
 
     def get_cpu_limit_configuration(self):
         return self.switches
-
-    # def run(self):
-    #     # print(self.get_cpu_limit_configuration())
-    #     process = subprocess.Popen(self.get_cpu_limit_configuration(), stdout=subprocess.PIPE)
-    #     self.__process__ = process
-    #     print(self.__process__.pid)
-    #     return process
-
-    # def kill(self):
-    #     print('Killing process with pid {}'.format(self.__process__.pid))
-    #     self.__process__.kill()
 
 
 class TopGrep():
@@ -238,7 +225,8 @@ class LimitedStress():
 
         return stress_run
 
-    def get_stress_pid(self, stress_output, stress_run):
+    @staticmethod
+    def get_stress_pid(stress_output, stress_run):
         while not re.search('\[[0-9]*\]?.forked', stress_output):
             stress_output = stress_run.stdout.readline()
         pid = remove_multiple_strings(('[', ']', 'forked'),
@@ -265,7 +253,8 @@ class LimitedStress():
         else:
             raise RuntimeError('Trying to fork pid that is already forked!')
 
-    def get_load(self, tgrep):
+    @staticmethod
+    def get_load(tgrep):
         tgrep_proc = tgrep.run()
         return tgrep.get_load(tgrep_proc)
 
@@ -282,7 +271,8 @@ class LimitedStress():
     def kill_normal_processes(self):
         kill_stack_processes(self.__subprocess_stack__)
 
-    def kill_forked_processes(self):
+    @staticmethod
+    def kill_forked_processes():
         global processes
         for fork_process in processes:
             print('Killing fork process with pid {}'.format(fork_process))
