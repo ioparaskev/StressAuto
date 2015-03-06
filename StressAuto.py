@@ -6,6 +6,7 @@ import time
 import sys
 import os
 import signal
+import progress_bar
 
 processes = []
 
@@ -23,7 +24,8 @@ def remove_multiple_strings(words, in_text):
     # use these three lines to do the replacement
     replace_escaped = dict((re.escape(k), v) for k, v in to_replace.iteritems())
     pattern = re.compile("|".join(replace_escaped.keys()))
-    final_text = pattern.sub(lambda m: replace_escaped[re.escape(m.group(0))], in_text)
+    final_text = pattern.sub(lambda m: replace_escaped[re.escape(m.group(0))],
+                             in_text)
     return final_text
 
 
@@ -70,13 +72,14 @@ class SubProc():
         except KeyError:
             raise ValueError('No such switch exists!')
 
-    #todo change active switching to ommit value needless flags
+    # todo change active switching to ommit value needless flags
     def get_active_switches(self):
         active_switches = []
         for switch in self.process_configuration['switches'].keys():
             if self.process_configuration['switches'][switch][0]:
-                active_switches.extend((self.process_configuration['switches'][switch][1],
-                                        self.process_configuration['switches'][switch][2]))
+                active_switches.extend(
+                    (self.process_configuration['switches'][switch][1],
+                     self.process_configuration['switches'][switch][2]))
         return tuple(active_switches)
 
     def get_absolute_program_location(self):
@@ -88,7 +91,9 @@ class SubProc():
         path = self.process_configuration['location'] \
             if self.process_configuration['location'] else '.'
         return tuple(['{0}/{1}'.format(path,
-                                       self.process_configuration['process_name'])])
+                                       self.process_configuration[
+                                           'process_name'
+                                       ])])
 
     #todo add configuration checking first
     def run(self):
@@ -108,7 +113,7 @@ class SubProc():
 
 class Stress:
     stress_configuration = ['./stress']
-    #todo should not use '' because of conflict with conf checking
+    # todo should not use '' because of conflict with conf checking
     switches = {'verbose': [True, '-v', ''],
                 'quiet': [None, '-q', ''],
                 'dry': [None, '-n', ''],
@@ -116,8 +121,7 @@ class Stress:
                 'cpu': [None, '-c', None],
                 'io': [None, '-i', None],
                 'vm': [None, '-m', None],
-                'hdd': [None, '-d', None]
-                }
+                'hdd': [None, '-d', None]}
     __process__ = None
 
     def __init__(self, stress_location=''):
@@ -129,20 +133,23 @@ class Stress:
 
     def __set_stress_basic__(self, stress_location=''):
         if stress_location:
-            absolute_path = stress_location + self.get_stress_configuration()[0].strip('.\\')
+            absolute_path = stress_location + \
+                            self.get_stress_configuration()[0].strip('.\\')
             self.stress_configuration[0] = absolute_path
         self.stress_configuration.append('-v')
         # if self.timeout:
         #     self.stress_configuration.extend(('-t', self.timeout))
 
-    def set_stress_configuration(self, cpu_workers=None, hdd_workers=None, io_workers=None):
+    def set_stress_configuration(self, cpu_workers=None, hdd_workers=None,
+                                 io_workers=None):
         switches = {'-c': cpu_workers, '-d': hdd_workers, '-i': io_workers}
         for x in switches.keys():
             if switches[x]:
                 self.stress_configuration.extend((x, str(switches[x])))
 
     def run(self):
-        process = subprocess.Popen(self.get_stress_configuration(), stdout=subprocess.PIPE)
+        process = subprocess.Popen(self.get_stress_configuration(),
+                                   stdout=subprocess.PIPE)
         self.__process__ = process
         return process
 
@@ -159,7 +166,7 @@ class CpuLimit(SubProc):
                 'limit': [True, '-l', '1'],
                 'lazy': [True, '-z', ''],
                 'verbose': [True, '-v', '']
-                }
+    }
 
     def __init__(self, process_name='cpulimit', location=None, switches=None):
         SubProc.__init__(self, process_name, location,
@@ -198,7 +205,8 @@ class TopGrep():
         topconf, grepconf = self.get_configuration()
 
         top = subprocess.Popen(topconf, stdout=subprocess.PIPE)
-        topgrep = subprocess.Popen(grepconf, stdin=top.stdout, stdout=subprocess.PIPE)
+        topgrep = subprocess.Popen(grepconf, stdin=top.stdout,
+                                   stdout=subprocess.PIPE)
 
         return topgrep
 
@@ -242,11 +250,12 @@ class LimitedStress():
         while not re.search('\[[0-9]*\]?.forked', stress_output):
             stress_output = stress_run.stdout.readline()
         pid = remove_multiple_strings(('[', ']', 'forked'),
-                                      re.search('\[[0-9]*\]?.forked', stress_output).group()).strip()
+                                      re.search('\[[0-9]*\]?.forked',
+                                                stress_output).group()).strip()
         return pid
 
     def fork_to_cpulimit(self, pid):
-        cpulimit = CpuLimit() #,location=self.__tool_location__.get('cpulimit', ''))
+        cpulimit = CpuLimit()
         cpulimit.set_cpulimit_pid_limit(pid=pid, limit=self.__limit__)
         # cpulimit.set_cpu_limit_configuration(pid=pid, limit=self.__limit__)
         cpulimit.run()
@@ -257,7 +266,7 @@ class LimitedStress():
         stress_run = self.run_stress()
         self.add_process_to_stack(stress_run)
         stress_output = stress_run.stdout.readline()
-        #find the pid that stress forks
+        # find the pid that stress forks
         pid = self.get_stress_pid(stress_output, stress_run)
         global processes
         if pid not in processes:
@@ -272,10 +281,12 @@ class LimitedStress():
 
     def stabilization_sleep(self, topgrep):
         print('Waiting to stabilize load')
-        for x in range(6):
-            sys.stdout.write('.')
-            time.sleep(1)
-            sys.stdout.write('.')
+        stabilize_msg = 'Waiting to stabilize load'
+        progress_bar.progress_bar(text=stabilize_msg,
+                                  toolbar_width=20)
+        progress_bar.progress_bar(text='.'*len(stabilize_msg), placeholder='.',
+                                  toolbar_width=20,
+                                  delimiters=(' ', ' '))
         load = self.get_load(topgrep)
         print('\nTotal load: {}'.format(load))
         return load
@@ -309,11 +320,11 @@ class LimitedStress():
                 print('Target achieved')
                 self.kill_everything()
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     lstress = LimitedStress(60)
     # LimitedStress(type=cpu, limit=blah, timeout=30,
-    #               tool_location={stress='global', cpulimit='global'})
+    # tool_location={stress='global', cpulimit='global'})
     lstress.run_and_keep_the_limit()
 
 
