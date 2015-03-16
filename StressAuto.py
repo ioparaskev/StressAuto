@@ -1,12 +1,12 @@
-__author__ = 'John Paraskevopoulos'
-
 import subprocess
 import re
 import time
-import sys
+import logging
 import os
 import signal
 import progress_bar
+import sys
+import argparse
 
 processes = []
 
@@ -22,7 +22,8 @@ def remove_multiple_strings(words, in_text):
     # to_replace = {"condition1": "", "condition2": "text"}
 
     # use these three lines to do the replacement
-    replace_escaped = dict((re.escape(k), v) for k, v in to_replace.iteritems())
+    replace_escaped = dict(
+        (re.escape(k), v) for k, v in to_replace.iteritems())
     pattern = re.compile("|".join(replace_escaped.keys()))
     final_text = pattern.sub(lambda m: replace_escaped[re.escape(m.group(0))],
                              in_text)
@@ -34,12 +35,49 @@ def kill_stack_processes(proc_stack):
         process.kill()
 
 
+class TopGrep():
+    """
+        Runs a top and greps the result
+        We call two lines top, because -n 1 always returns a cached result
+    """
+    top_configuration = ['top', '-n', '2' '-b']
+    grep = ['grep']
+
+    def __init__(self, process_name, limit_lines_before=None, exclude=None):
+        if limit_lines_before:
+            self.grep.extend(('-B', limit_lines_before))
+
+        if exclude:
+            self.grep.extend(('-v', '\'', exclude, '\''))
+
+        if process_name not in self.grep:
+            self.grep.append(process_name)
+
+    def get_configuration(self):
+        return self.top_configuration, self.grep
+
+    def run(self):
+        topconf, grepconf = self.get_configuration()
+
+        top = subprocess.Popen(topconf, stdout=subprocess.PIPE)
+        topgrep = subprocess.Popen(grepconf, stdin=top.stdout,
+                                   stdout=subprocess.PIPE)
+
+        return topgrep
+
+    @staticmethod
+    def get_load(top_grep_cpu_proc):
+        split_stdout = top_grep_cpu_proc.stdout.readlines()[1].split(' ')
+        cpuload = float(split_stdout[split_stdout.index('us,') - 1])
+        return cpuload
+
+
 class SubProc():
     """
         Process configuration:
         location : location string
         process_name : process name
-        switches : { switch_name : (enabled, switch_flag, value }
+        switches : { switch_name : (enabled, switch_flag, value) }
     """
     process_configuration = {'location': '',
                              'process_name': '',
@@ -84,10 +122,10 @@ class SubProc():
 
     def get_absolute_program_location(self):
         if self.process_configuration['location'] is 'global':
-            #app is installed on system
+            # app is installed on system
             return self.process_configuration['process_name']
 
-        #if path append path, else ./ local run
+        # if path append path, else ./ local run
         path = self.process_configuration['location'] \
             if self.process_configuration['location'] else '.'
         return tuple(['{0}/{1}'.format(path,
@@ -95,7 +133,7 @@ class SubProc():
                                            'process_name'
                                        ])])
 
-    #todo add configuration checking first
+    # todo add configuration checking first
     def run(self):
         prog = self.get_absolute_program_location()
         active_switches = self.get_active_switches()
@@ -133,12 +171,13 @@ class Stress:
 
     def __set_stress_basic__(self, stress_location=''):
         if stress_location:
-            absolute_path = stress_location + \
-                            self.get_stress_configuration()[0].strip('.\\')
+            absolute_path = "{0}{1}".format(stress_location,
+                                            self.get_stress_configuration()
+                                            [0].strip('.\\'))
             self.stress_configuration[0] = absolute_path
         self.stress_configuration.append('-v')
         # if self.timeout:
-        #     self.stress_configuration.extend(('-t', self.timeout))
+        # self.stress_configuration.extend(('-t', self.timeout))
 
     def set_stress_configuration(self, cpu_workers=None, hdd_workers=None,
                                  io_workers=None):
@@ -154,19 +193,16 @@ class Stress:
         return process
 
     def kill(self):
-        print('Killing stress process with pid {}'.format(self.__process__.pid))
+        print(
+            'Killing stress process with pid {}'.format(self.__process__.pid))
         self.__process__.kill()
 
 
 class CpuLimit(SubProc):
     __process__ = None
-    switches = {'pid': [True, '-p', None],
-                'exe': [None, '-e', None],
-                'path': [None, '-P', None],
-                'limit': [True, '-l', '1'],
-                'lazy': [True, '-z', ''],
-                'verbose': [True, '-v', '']
-    }
+    switches = dict(pid=[True, '-p', None], exe=[None, '-e', None],
+                    path=[None, '-P', None], limit=[True, '-l', '1'],
+                    lazy=[True, '-z', ''], verbose=[True, '-v', ''])
 
     def __init__(self, process_name='cpulimit', location=None, switches=None):
         SubProc.__init__(self, process_name, location,
@@ -180,52 +216,19 @@ class CpuLimit(SubProc):
         return self.switches
 
 
-class TopGrep():
-    """
-        Runs a top and greps the result
-        We call two lines top, because -n 1 always returns a cached result
-    """
-    top_configuration = ['top', '-n', '2' '-b']
-    grep = ['grep']
-
-    def __init__(self, process_name, limit_lines_before=None, exclude=None):
-        if limit_lines_before:
-            self.grep.extend(('-B', limit_lines_before))
-
-        if exclude:
-            self.grep.extend(('-v', '\'', exclude, '\''))
-
-        if process_name not in self.grep:
-            self.grep.append(process_name)
-
-    def get_configuration(self):
-        return self.top_configuration, self.grep
-
-    def run(self):
-        topconf, grepconf = self.get_configuration()
-
-        top = subprocess.Popen(topconf, stdout=subprocess.PIPE)
-        topgrep = subprocess.Popen(grepconf, stdin=top.stdout,
-                                   stdout=subprocess.PIPE)
-
-        return topgrep
-
-    def get_load(self, top_grep_cpu_proc):
-        split_stdout = top_grep_cpu_proc.stdout.readlines()[1].split(' ')
-        cpuload = float(split_stdout[split_stdout.index('us,') - 1])
-        return cpuload
-
-
 class LimitedStress():
     __subprocess_stack__ = []
-    __tool_location__ = {}
+    __tool_location__ = dict
     __limit__ = 1
+    __timeout__ = None
 
-    def __init__(self, limit=1, timeout=None, tool_location={}):
+    def __init__(self, limit=1, timeout=None, tool_location=dict):
         self.__tool_location__ = tool_location
         self.__limit__ = limit
+        self.__timeout__ = timeout
 
-    def get_stack(self):
+    @staticmethod
+    def get_stack():
         global processes
         return processes
 
@@ -237,8 +240,11 @@ class LimitedStress():
     def add_process_to_stack(self, proc):
         self.__subprocess_stack__.append(proc)
 
+    def get_location(self, tool):
+        return self.__tool_location__.get(tool, '')
+
     def run_stress(self):
-        stress = Stress()
+        stress = Stress(stress_location=self.get_location('stress'))
         stress.set_stress_configuration(cpu_workers=1)
         stress_run = stress.run()
         self.add_process_to_stack(stress)
@@ -257,7 +263,6 @@ class LimitedStress():
     def fork_to_cpulimit(self, pid):
         cpulimit = CpuLimit()
         cpulimit.set_cpulimit_pid_limit(pid=pid, limit=self.__limit__)
-        # cpulimit.set_cpu_limit_configuration(pid=pid, limit=self.__limit__)
         cpulimit.run()
         self.add_process_to_stack(cpulimit)
         self.add_pid_to_stack(pid)
@@ -279,12 +284,12 @@ class LimitedStress():
         tgrep_proc = tgrep.run()
         return tgrep.get_load(tgrep_proc)
 
-    def stabilization_sleep(self, topgrep):
-        print('Waiting to stabilize load')
+    def stabilization_check(self, topgrep):
         stabilize_msg = 'Waiting to stabilize load'
         progress_bar.progress_bar(text=stabilize_msg,
                                   toolbar_width=20)
-        progress_bar.progress_bar(text='.'*len(stabilize_msg), placeholder='.',
+        progress_bar.progress_bar(text='.' * len(stabilize_msg),
+                                  placeholder='.',
                                   toolbar_width=20,
                                   delimiters=(' ', ' '))
         load = self.get_load(topgrep)
@@ -314,17 +319,55 @@ class LimitedStress():
             self.stress()
             time.sleep(2)
         else:
-            if self.stabilization_sleep(tgrep) + 5 < self.__limit__:
+            if self.stabilization_check(tgrep) + 5 < self.__limit__:
                 self.run_and_keep_the_limit()
-            else:
-                print('Target achieved')
-                self.kill_everything()
+
+        if self.__timeout__:
+            print('Timeout is on\nSleeping {} seconds'
+                  .format(self.__timeout__))
+            time.sleep(self.__timeout__)
+        print('Target achieved')
+        self.kill_everything()
+
+
+def location_crafter(*args):
+    tools = ('stress', 'cpulimit')
+    __locations__ = dict()
+
+    for count, location in enumerate(args):
+        __locations__[tools[count]] = location
+
+    return __locations__
+
+
+def args_crafter():
+    global parser
+    parser = argparse.ArgumentParser(__file__,
+                                     description='Simple stress tool wrapper')
+    parser.add_argument('-l', '--limit', help='Limit of load to reach',
+                        type=int, required=True)
+    parser.add_argument('-t', '--timeout', help='Seconds after reaching '
+                                                'target to quit',
+                        type=int, default=0)
+    parser.add_argument('-sl', '--slocation', help='Absolute path to '
+                                                   'stress tool location',
+                        default='', type=str)
+    parser.add_argument('-cl', '--clocation', help='Absolute path to '
+                                                   'cpulimit location',
+                        default='', type=str)
+    parser.add_argument('-st', '--stype', help='Type of stress c(pu) / i(o)',
+                        default='cpu', choices=('cpu', 'c', 'io', 'i'))
 
 
 if __name__ == '__main__':
-    lstress = LimitedStress(60)
-    # LimitedStress(type=cpu, limit=blah, timeout=30,
-    # tool_location={stress='global', cpulimit='global'})
+    args_crafter()
+
+    args_parse = parser.parse_args()
+
+    locations = location_crafter(args_parse.slocation, args_parse.clocation)
+    lstress = LimitedStress(args_parse.limit, args_parse.timeout,
+                            tool_location=locations)
+
     lstress.run_and_keep_the_limit()
 
 
