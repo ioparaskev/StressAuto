@@ -35,6 +35,50 @@ def kill_stack_processes(proc_stack):
         process.kill()
 
 
+class DebugLogPrint():
+    """
+        A class that either prints/logs/both/supress messages
+        Replaces print and log calls
+    """
+    choices = ''
+    log_path = ''
+
+    def __set_choice__(self, choice):
+        if choice:
+            if choice == 'debug':
+                self.choices = ('print', 'log')
+            else:
+                self.choices = (choice,)
+
+    def __init__(self, print_choice=choices, log_path=''):
+        if print_choice not in ('', 'print', 'log', 'debug'):
+            raise NotImplementedError('This choices is not supported!')
+        self.__set_choice__(print_choice)
+        self.log_file_path = '{}/debug.log'.format(log_path)
+
+        logging.basicConfig(filename=self.log_file_path, level=logging.DEBUG)
+
+    @staticmethod
+    def dprint(message):
+        print(message)
+
+    @staticmethod
+    def dlog(message, level):
+        if level == 'DEBUG':
+            logging.debug(message)
+        else:
+            logging.info(message) \
+                if level == 'INFO' else logging.warning(message)
+
+    def debuglogprint(self, message, level='INFO'):
+        if self.choices:
+            for choice in self.choices:
+                self.dprint(message) if choice == 'print' \
+                    else self.dlog(message, level)
+        else:
+            pass
+
+
 class TopGrep():
     """
         Runs a top and greps the result
