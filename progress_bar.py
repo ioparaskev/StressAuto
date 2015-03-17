@@ -22,7 +22,7 @@ def progress_bar(text='-', placeholder='-', toolbar_width=60,
     text_length = len(text) if text else 0
     toolbar_width += text_length
     # setup toolbar
-    sys.stdout.write('{}{}{}'.format(delimiters[0], " "*toolbar_width,
+    sys.stdout.write('{0}{1}{2}'.format(delimiters[0], " "*toolbar_width,
                                      delimiters[1]))
     sys.stdout.flush()
      # return to start of line, after '['
