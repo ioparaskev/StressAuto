@@ -110,10 +110,14 @@ class TopGrep():
         return topgrep
 
     @staticmethod
-    def get_load(top_grep_cpu_proc):
-        split_stdout = top_grep_cpu_proc.stdout.readlines()[1].split(' ')
-        cpuload = float(split_stdout[split_stdout.index('us,') - 1])
-        return cpuload
+    def get_clear_percent(top_strip):
+        clear_percent = (''.join(x for x in top_strip
+                                 if (x.isdigit() or x == '.')))
+        return clear_percent
+
+    def get_cpuload(self, top_grep_cpu_proc):
+        return self.get_clear_percent(
+            top_strip=top_grep_cpu_proc.stdout.readlines()[1])
 
 
 class SubProc():
@@ -220,8 +224,7 @@ class Stress:
                                             [0].strip('.\\'))
             self.stress_configuration[0] = absolute_path
         self.stress_configuration.append('-v')
-        # if self.timeout:
-        # self.stress_configuration.extend(('-t', self.timeout))
+
 
     def set_stress_configuration(self, cpu_workers=None, hdd_workers=None,
                                  io_workers=None):
@@ -326,7 +329,7 @@ class LimitedStress():
     @staticmethod
     def get_load(tgrep):
         tgrep_proc = tgrep.run()
-        return tgrep.get_load(tgrep_proc)
+        return tgrep.get_cpuload(tgrep_proc)
 
     def stabilization_check(self, topgrep):
         stabilize_msg = 'Waiting to stabilize load'
@@ -386,8 +389,9 @@ def location_crafter(*args):
 
 def args_crafter():
     global parser
-    parser = argparse.ArgumentParser(__file__,
-                                     description='Simple stress tool wrapper')
+    parser = argparse.ArgumentParser(prog='StressAuto',
+                                     description='Simple stress tool wrapper',
+                                     usage='%(prog)s [options]')
     parser.add_argument('-l', '--limit', help='Limit of load to reach',
                         type=int, required=True)
     parser.add_argument('-t', '--timeout', help='Seconds after reaching '
@@ -396,8 +400,8 @@ def args_crafter():
     parser.add_argument('-sl', '--slocation', help='Absolute path to '
                                                    'stress tool location',
                         default='', type=str)
-    parser.add_argument('-cl', '--clocation', help='Absolute path to '
-                                                   'cpulimit location',
+    parser.add_argument('-cl', '--clocation', metavar='cpulimit Location',
+                        help='Absolute path to cpulimit location',
                         default='', type=str)
     parser.add_argument('-st', '--stype', help='Type of stress c(pu) / i(o)',
                         default='cpu', choices=('cpu', 'c', 'io', 'i'))
