@@ -356,21 +356,25 @@ class LimitedStress():
         self.kill_normal_processes()
         self.kill_forked_processes()
 
+    def timeout_sleep(self):
+        print('Timeout is on\nSleeping {0} seconds'
+              .format(self.__timeout__))
+        time.sleep(self.__timeout__)
+
     def run_and_keep_the_limit(self):
         tgrep = TopGrep('Cpu')
 
-        while self.get_load(tgrep) + 10 < self.__limit__:
+        while self.get_load(tgrep) + 5 < self.__limit__:
             print('Cpu load is currently at {0}'.format(self.get_load(tgrep)))
             self.stress()
             time.sleep(2)
         else:
-            if self.stabilization_check(tgrep) + 5 < self.__limit__:
-                self.run_and_keep_the_limit()
+            if self.stabilization_check(tgrep) + 1 < self.__limit__:
+                self.stress()
+                time.sleep(2)
 
         if self.__timeout__:
-            print('Timeout is on\nSleeping {0} seconds'
-                  .format(self.__timeout__))
-            time.sleep(self.__timeout__)
+            self.timeout_sleep()
         print('Target achieved')
         self.kill_everything()
 
