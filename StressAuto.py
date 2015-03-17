@@ -378,10 +378,14 @@ class LimitedStress():
         time.sleep(self.__timeout__)
 
     def add_cpulimit_limit(self, new_value):
-        if (self.__cpulimit_limit__ + new_value) > 100:
-            self.__cpulimit_limit__ = 100
+        total_cpulimit = self.__cpulimit_limit__ + new_value
+        if total_cpulimit > 100 or total_cpulimit < 0:
+            self.__cpulimit_limit__ = -new_value if total_cpulimit < 0 else 100
         else:
             self.__cpulimit_limit__ += new_value
+
+    def speedup_load_velocity(self):
+        self.add_cpulimit_limit(100)
 
     def increase_load_velocity(self, percentage_increase):
         print('Raising load velocity')
@@ -399,11 +403,14 @@ class LimitedStress():
         else:
             self.add_cpulimit_limit(-5)
 
-    def adjust_load_velocity(self, percentage_increase):
-        if percentage_increase <= 50:
-            self.increase_load_velocity(percentage_increase)
+    def adjust_load_velocity(self, percentage_increase, total_load):
+        if self.__limit__ / total_load > 10:
+            self.speedup_load_velocity()
         else:
-            self.decrease_load_velocity(percentage_increase)
+            if percentage_increase <= 50:
+                self.increase_load_velocity(percentage_increase)
+            else:
+                self.decrease_load_velocity(percentage_increase)
 
     def set_action_load_velocity(self, finalizing=False):
         if self.__new_load__ and self.__old_load__:
@@ -411,9 +418,10 @@ class LimitedStress():
             percentage_increase = ((self.__new_load__ - self.__old_load__)
                                    * 100) / self.__old_load__
             if not finalizing:
-                self.adjust_load_velocity(percentage_increase)
+                self.adjust_load_velocity(percentage_increase,
+                                          self.__new_load__)
             else:
-                self.decrease_load_velocity(-self.__limit__/2)
+                self.add_cpulimit_limit(-self.__limit__/2)
 
     def run_and_keep_the_limit(self):
         tgrep = TopGrep('Cpu')
@@ -423,7 +431,7 @@ class LimitedStress():
             self.set_action_load_velocity()
             self.stress()
         else:
-            while self.stabilization_check(tgrep) + 5 < self.__limit__:
+            while self.stabilization_check(tgrep) + 2 < self.__limit__:
                 self.set_action_load_velocity(finalizing=True)
                 self.stress()
 
