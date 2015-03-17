@@ -265,11 +265,13 @@ class LimitedStress():
     __subprocess_stack__ = []
     __tool_location__ = dict
     __limit__ = 1
+    __cpulimit_limit__ = 1
     __timeout__ = None
+    __old_load__ = __new_load__ = 1
 
     def __init__(self, limit=1, timeout=None, tool_location=dict):
         self.__tool_location__ = tool_location
-        self.__limit__ = limit
+        self.__limit__ = self.__cpulimit_limit__ = limit
         self.__timeout__ = timeout
 
     @staticmethod
@@ -307,22 +309,36 @@ class LimitedStress():
 
     def fork_to_cpulimit(self, pid):
         cpulimit = CpuLimit()
-        cpulimit.set_cpulimit_pid_limit(pid=pid, limit=self.__limit__)
+        cpulimit.set_cpulimit_pid_limit(pid=pid, limit=self.__cpulimit_limit__)
         cpulimit.run()
         self.add_process_to_stack(cpulimit)
         self.add_pid_to_stack(pid)
 
-    def stress(self):
-        stress_run = self.run_stress()
-        self.add_process_to_stack(stress_run)
-        stress_output = stress_run.stdout.readline()
-        # find the pid that stress forks
+    def limit_pid(self, stress_output, stress_run):
         pid = self.get_stress_pid(stress_output, stress_run)
         global processes
         if pid not in processes:
             self.fork_to_cpulimit(pid)
         else:
             raise RuntimeError('Trying to fork pid that is already forked!')
+
+    def stress(self):
+        self.update_load('old')
+        stress_run = self.run_stress()
+        self.add_process_to_stack(stress_run)
+        stress_output = stress_run.stdout.readline()
+        # find the pid that stress forks and limit it
+        self.limit_pid(stress_output, stress_run)
+        self.update_load('new')
+
+    def update_load(self, type):
+        time.sleep(2)
+        tgrep = TopGrep('Cpu')
+        load = self.get_load(tgrep)
+        if type == 'new':
+            self.__new_load__ = load
+        else:
+            self.__old_load__ = load
 
     @staticmethod
     def get_load(tgrep):
@@ -361,22 +377,32 @@ class LimitedStress():
               .format(self.__timeout__))
         time.sleep(self.__timeout__)
 
+    def evaluate_limit_fluctuation(self, tgrep):
+        return {'upper': self.get_load(tgrep) + 10,
+                'lower': self.get_load(tgrep) + 5}
+        
     def run_and_keep_the_limit(self):
         tgrep = TopGrep('Cpu')
 
-        while self.get_load(tgrep) + 5 < self.__limit__:
+        while self.evaluate_limit_fluctuation(tgrep)['upper'] < self.__limit__:
+            self.adjust_load_velocity()
             print('Cpu load is currently at {0}'.format(self.get_load(tgrep)))
             self.stress()
-            time.sleep(2)
         else:
-            if self.stabilization_check(tgrep) + 1 < self.__limit__:
+            if self.evaluate_limit_fluctuation(tgrep)['lower'] < self.__limit__:
                 self.stress()
-                time.sleep(2)
 
         if self.__timeout__:
             self.timeout_sleep()
         print('Target achieved')
         self.kill_everything()
+
+    def adjust_load_velocity(self):
+        self.raise_load_velocity()
+        pass
+
+    def raise_load_velocity(self):
+        pass
 
 
 def location_crafter(*args):
