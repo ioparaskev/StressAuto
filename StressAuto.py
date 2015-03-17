@@ -398,11 +398,13 @@ class LimitedStress():
         self.kill_everything()
 
     def adjust_load_velocity(self):
-        self.raise_load_velocity()
-        pass
+        #we want velocity > 5% per stress launch
+        if (self.__new_load__ - self.__old_load__) <= 5:
+            print('Raising load velocity')
+            self.raise_load_velocity()
 
     def raise_load_velocity(self):
-        pass
+        self.__cpulimit_limit__ += 5
 
 
 def location_crafter(*args):
