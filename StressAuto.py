@@ -359,7 +359,7 @@ class LimitedStress():
     def run_and_keep_the_limit(self):
         tgrep = TopGrep('Cpu')
 
-        while int(self.get_load(tgrep)) + 10 < self.__limit__:
+        while float(self.get_load(tgrep)) + 10 < self.__limit__:
             print('Cpu load is currently at {}'.format(self.get_load(tgrep)))
             self.stress()
             time.sleep(2)
