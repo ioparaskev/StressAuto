@@ -53,7 +53,7 @@ class DebugLogPrint():
         if print_choice not in ('', 'print', 'log', 'debug'):
             raise NotImplementedError('This choices is not supported!')
         self.__set_choice__(print_choice)
-        self.log_file_path = '{}/debug.log'.format(log_path)
+        self.log_file_path = '{0}/debug.log'.format(log_path)
 
         logging.basicConfig(filename=self.log_file_path, level=logging.DEBUG)
 
@@ -190,7 +190,7 @@ class SubProc():
 
     def kill(self, verbose=None):
         if verbose:
-            print('Killing {0} process with pid {`}'.
+            print('Killing {0} process with pid {1}'.
                   format(self.process_configuration['process_name'],
                          self.__process__.pid))
         self.__process__.kill()
@@ -239,7 +239,7 @@ class Stress:
 
     def kill(self):
         print(
-            'Killing stress process with pid {}'.format(self.__process__.pid))
+            'Killing stress process with pid {0}'.format(self.__process__.pid))
         self.__process__.kill()
 
 
@@ -338,7 +338,7 @@ class LimitedStress():
                                   toolbar_width=20,
                                   delimiters=(' ', ' '))
         load = self.get_load(topgrep)
-        print('\nTotal load: {}'.format(load))
+        print('\nTotal load: {0}'.format(load))
         return load
 
     def kill_normal_processes(self):
@@ -348,7 +348,7 @@ class LimitedStress():
     def kill_forked_processes():
         global processes
         for fork_process in processes:
-            print('Killing fork process with pid {}'.format(fork_process))
+            print('Killing fork process with pid {0}'.format(fork_process))
             os.kill(int(fork_process), signal.SIGKILL)
 
     def kill_everything(self):
@@ -360,7 +360,7 @@ class LimitedStress():
         tgrep = TopGrep('Cpu')
 
         while self.get_load(tgrep) + 10 < self.__limit__:
-            print('Cpu load is currently at {}'.format(self.get_load(tgrep)))
+            print('Cpu load is currently at {0}'.format(self.get_load(tgrep)))
             self.stress()
             time.sleep(2)
         else:
@@ -368,7 +368,7 @@ class LimitedStress():
                 self.run_and_keep_the_limit()
 
         if self.__timeout__:
-            print('Timeout is on\nSleeping {} seconds'
+            print('Timeout is on\nSleeping {0} seconds'
                   .format(self.__timeout__))
             time.sleep(self.__timeout__)
         print('Target achieved')
