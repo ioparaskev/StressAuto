@@ -380,7 +380,33 @@ class LimitedStress():
     def evaluate_limit_fluctuation(self, tgrep):
         return {'upper': self.get_load(tgrep) + 10,
                 'lower': self.get_load(tgrep) + 5}
-        
+
+    def set_cpulimit_limit(self, new_value):
+        if (self.__cpulimit_limit__ + new_value) > 100:
+            self.__cpulimit_limit__ = 100
+
+    def increase_load_velocity(self, percentage_increase):
+        if percentage_increase < 10:
+            self.set_cpulimit_limit(100)
+        elif percentage_increase < 30:
+            self.set_cpulimit_limit(10)
+        else:
+            self.set_cpulimit_limit(5)
+
+    def decrease_load_velocity(self, load):
+        pass
+
+    def adjust_load_velocity(self):
+        # we want velocity > 50% per stress launch
+        percentage_increase = ((self.__new_load__ -
+                                self.__old_load__) * 100) / self.__old_load__
+        if percentage_increase <= 50:
+            print('Raising load velocity')
+            self.increase_load_velocity(percentage_increase)
+        else:
+            print('Decreasing load velocity')
+            self.decrease_load_velocity(percentage_increase)
+
     def run_and_keep_the_limit(self):
         tgrep = TopGrep('Cpu')
 
@@ -389,31 +415,14 @@ class LimitedStress():
             print('Cpu load is currently at {0}'.format(self.get_load(tgrep)))
             self.stress()
         else:
-            if self.evaluate_limit_fluctuation(tgrep)['lower'] < self.__limit__:
+            if self.evaluate_limit_fluctuation(tgrep)['lower'] \
+                    < self.__limit__:
                 self.stress()
 
         if self.__timeout__:
             self.timeout_sleep()
         print('Target achieved')
         self.kill_everything()
-
-    def increase_cpulimit_limit(self, new_value):
-        if (self.__cpulimit_limit__ + new_value) > 100:
-            self.__cpulimit_limit__ = 100
-
-    def raise_load_velocity(self, load):
-        if (self.__limit__ - load)/2 > 10:
-            self.increase_cpulimit_limit(100)
-        elif (self.__limit__ - load)/2 > 5:
-            self.increase_cpulimit_limit(10)
-        else:
-            self.increase_cpulimit_limit(5)
-
-    def adjust_load_velocity(self):
-        #we want velocity > 5% per stress launch
-        if (self.__new_load__ - self.__old_load__) <= 5:
-            print('Raising load velocity')
-            self.raise_load_velocity(self.__new_load__)
 
 
 def location_crafter(*args):
