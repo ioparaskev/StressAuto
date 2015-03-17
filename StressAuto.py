@@ -327,7 +327,7 @@ class LimitedStress():
     @staticmethod
     def get_load(tgrep):
         tgrep_proc = tgrep.run()
-        return tgrep.get_cpuload(tgrep_proc)
+        return float(tgrep.get_cpuload(tgrep_proc))
 
     def stabilization_check(self, topgrep):
         stabilize_msg = 'Waiting to stabilize load'
@@ -359,7 +359,7 @@ class LimitedStress():
     def run_and_keep_the_limit(self):
         tgrep = TopGrep('Cpu')
 
-        while float(self.get_load(tgrep)) + 10 < self.__limit__:
+        while self.get_load(tgrep) + 10 < self.__limit__:
             print('Cpu load is currently at {}'.format(self.get_load(tgrep)))
             self.stress()
             time.sleep(2)
