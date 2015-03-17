@@ -5,7 +5,6 @@ import logging
 import os
 import signal
 import progress_bar
-import sys
 import argparse
 
 processes = []
@@ -117,7 +116,7 @@ class TopGrep():
 
     def get_cpuload(self, top_grep_cpu_proc):
         return self.get_clear_percent(
-            top_strip=top_grep_cpu_proc.stdout.readlines()[1])
+            top_strip=top_grep_cpu_proc.stdout.readlines()[1].split()[1])
 
 
 class SubProc():
@@ -224,7 +223,6 @@ class Stress:
                                             [0].strip('.\\'))
             self.stress_configuration[0] = absolute_path
         self.stress_configuration.append('-v')
-
 
     def set_stress_configuration(self, cpu_workers=None, hdd_workers=None,
                                  io_workers=None):
@@ -361,7 +359,8 @@ class LimitedStress():
     def run_and_keep_the_limit(self):
         tgrep = TopGrep('Cpu')
 
-        while self.get_load(tgrep) + 10 < self.__limit__:
+        print(self.get_load(tgrep))
+        while int(self.get_load(tgrep)) + 10 < self.__limit__:
             print('Cpu load is currently at {}'.format(self.get_load(tgrep)))
             self.stress()
             time.sleep(2)
