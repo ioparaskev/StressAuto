@@ -261,18 +261,20 @@ class CpuLimit(SubProc):
         return self.switches
 
 
-class LimitedStress():
+class LimitedStress(object):
     __subprocess_stack__ = []
     __tool_location__ = dict
     __limit__ = 1
     __cpulimit_limit__ = 1
     __timeout__ = None
     __old_load__ = __new_load__ = None
+    topgrep = None
 
     def __init__(self, limit=1, timeout=None, tool_location=dict):
         self.__tool_location__ = tool_location
         self.__limit__ = self.__cpulimit_limit__ = limit
         self.__timeout__ = timeout
+        self.topgrep = TopGrep('Cpu')
 
     @staticmethod
     def get_stack():
@@ -332,9 +334,8 @@ class LimitedStress():
         self.update_load('new')
 
     def update_load(self, load_choice):
-        time.sleep(2)
-        tgrep = TopGrep('Cpu')
-        load = self.get_load(tgrep)
+        # time.sleep(1)
+        load = self.get_load(self.topgrep)
         if load_choice == 'new':
             self.__new_load__ = load
         else:
@@ -377,63 +378,45 @@ class LimitedStress():
               .format(self.__timeout__))
         time.sleep(self.__timeout__)
 
-    def add_cpulimit_limit(self, new_value):
-        total_cpulimit = self.__cpulimit_limit__ + new_value
-        if total_cpulimit > 100 or total_cpulimit < 0:
-            self.__cpulimit_limit__ = -new_value if total_cpulimit < 0 else 100
-        else:
-            self.__cpulimit_limit__ += new_value
+    @property
+    def cpulimit_limit(self):
+        return self.__cpulimit_limit__
 
-    def speedup_load_velocity(self):
-        self.add_cpulimit_limit(100)
+    @cpulimit_limit.setter
+    def cpulimit_limit(self, new_value):
+        self.__cpulimit_limit__ = 100 if new_value > 100 else new_value
 
-    def increase_load_velocity(self, percentage_increase):
-        print('Raising load velocity')
-        if percentage_increase < 10:
-            self.add_cpulimit_limit(100)
-        elif percentage_increase < 30:
-            self.add_cpulimit_limit(10)
-        else:
-            self.add_cpulimit_limit(5)
-
-    def decrease_load_velocity(self, percentage_increase):
-        print('Decreasing load velocity')
-        if percentage_increase > 70:
-            self.add_cpulimit_limit(-10)
-        else:
-            self.add_cpulimit_limit(-5)
-
-    def adjust_load_velocity(self, percentage_increase, total_load):
-        if self.__limit__ / total_load > 10:
-            self.speedup_load_velocity()
-        else:
-            if percentage_increase <= 50:
-                self.increase_load_velocity(percentage_increase)
-            else:
-                self.decrease_load_velocity(percentage_increase)
-
-    def set_action_load_velocity(self, finalizing=False):
+    def calculate_velocity(self):
+        """
+            Calculate the last stress percentage velocity
+        """
         if self.__new_load__ and self.__old_load__:
-            # we want velocity > 50% per stress launch
-            percentage_increase = ((self.__new_load__ - self.__old_load__)
-                                   * 100) / self.__old_load__
-            if not finalizing:
-                self.adjust_load_velocity(percentage_increase,
-                                          self.__new_load__)
-            else:
-                self.add_cpulimit_limit(-self.__limit__/2)
+            velocity = self.__new_load__ - self.__old_load__
+        else:
+            velocity = None
+        return velocity
+
+    def adjust_velocity(self, current_velocity):
+        """
+            Predict the new velocity to reach the limit
+            Calculate the new limit based on the wanted and current velocity
+        """
+        if current_velocity:
+            wanted_velocity = self.__limit__ - self.__new_load__
+            new_limit = int((wanted_velocity/current_velocity)*self.__limit__)
+            print(current_velocity, new_limit, wanted_velocity)
+        else:
+            new_limit = 100
+        self.cpulimit_limit = new_limit
 
     def run_and_keep_the_limit(self):
-        tgrep = TopGrep('Cpu')
-
-        while self.get_load(tgrep) + 10 < self.__limit__:
-            print('Cpu load is currently at {0}'.format(self.get_load(tgrep)))
-            self.set_action_load_velocity()
+        while self.get_load(self.topgrep) + 2 < self.__limit__:
+            print('Cpu load is currently at {0}'.
+                  format(self.get_load(self.topgrep)))
+            self.adjust_velocity(current_velocity=self.calculate_velocity())
             self.stress()
         else:
-            while self.stabilization_check(tgrep) + 2 < self.__limit__:
-                self.set_action_load_velocity(finalizing=True)
-                self.stress()
+            self.stabilization_check(self.topgrep)
 
         if self.__timeout__:
             self.timeout_sleep()
