@@ -10,22 +10,23 @@ import argparse
 processes = []
 
 
-def remove_multiple_strings(words, in_text):
+def remove_multiple_strings(words, text):
     """
     :param words: list or tuple of words
-    :param in_text: string
+    :param text: string
     :return: string
     """
-
+    final_text = []
     to_replace = dict([(x, '') for x in words])
     # to_replace = {"condition1": "", "condition2": "text"}
 
     # use these three lines to do the replacement
-    replace_escaped = dict(
-        (re.escape(k), v) for k, v in to_replace.iteritems())
+    replace_escaped = dict((re.escape(k), v)
+                           for k, v in to_replace.iteritems())
     pattern = re.compile("|".join(replace_escaped.keys()))
-    final_text = pattern.sub(lambda m: replace_escaped[re.escape(m.group(0))],
-                             in_text)
+    for sentence in text:
+        final_text.append(pattern.sub(
+            lambda m: replace_escaped[re.escape(m.group(0))], sentence))
     return final_text
 
 
@@ -165,7 +166,7 @@ class SubProc():
                 active_switches.extend(
                     (self.process_configuration['switches'][switch][1],
                      self.process_configuration['switches'][switch][2]))
-        return tuple(active_switches)
+        return tuple(x for x in active_switches if x)
 
     def get_absolute_program_location(self):
         if self.process_configuration['location'] is 'global':
@@ -184,6 +185,7 @@ class SubProc():
     def run(self):
         prog = self.get_absolute_program_location()
         active_switches = self.get_active_switches()
+        print(prog + active_switches)
         self.__process__ = subprocess.Popen(prog + active_switches,
                                             stdout=subprocess.PIPE)
         return self.__process__
@@ -196,8 +198,8 @@ class SubProc():
         self.__process__.kill()
 
 
-class Stress:
-    stress_configuration = ['./stress']
+class Stress(SubProc):
+    stress_configuration = {'location': './stress'}
     # todo should not use '' because of conflict with conf checking
     switches = {'verbose': [True, '-v', ''],
                 'quiet': [None, '-q', ''],
@@ -209,38 +211,9 @@ class Stress:
                 'hdd': [None, '-d', None]}
     __process__ = None
 
-    def __init__(self, stress_location=''):
-        self.stress_location = stress_location
-        self.__set_stress_basic__()
-
-    def get_stress_configuration(self):
-        return self.stress_configuration
-
-    def __set_stress_basic__(self, stress_location=''):
-        if stress_location:
-            absolute_path = "{0}{1}".format(stress_location,
-                                            self.get_stress_configuration()
-                                            [0].strip('.\\'))
-            self.stress_configuration[0] = absolute_path
-        self.stress_configuration.append('-v')
-
-    def set_stress_configuration(self, cpu_workers=None, hdd_workers=None,
-                                 io_workers=None):
-        switches = {'-c': cpu_workers, '-d': hdd_workers, '-i': io_workers}
-        for x in switches.keys():
-            if switches[x]:
-                self.stress_configuration.extend((x, str(switches[x])))
-
-    def run(self):
-        process = subprocess.Popen(self.get_stress_configuration(),
-                                   stdout=subprocess.PIPE)
-        self.__process__ = process
-        return process
-
-    def kill(self):
-        print(
-            'Killing stress process with pid {0}'.format(self.__process__.pid))
-        self.__process__.kill()
+    def __init__(self, process_name='stress', location=None, switches=None):
+        SubProc.__init__(self, process_name, location,
+                         switches=switches if switches else self.switches)
 
 
 class CpuLimit(SubProc):
@@ -268,13 +241,17 @@ class LimitedStress(object):
     __cpulimit_limit__ = 1
     __timeout__ = None
     __old_load__ = __new_load__ = None
+    stress_types = None
+    workers = 1
     topgrep = None
 
-    def __init__(self, limit=1, timeout=None, tool_location=dict):
+    def __init__(self, stress_types=('cpu',), limit=1, timeout=None,
+                 tool_location=dict):
         self.__tool_location__ = tool_location
         self.__limit__ = self.__cpulimit_limit__ = limit
         self.__timeout__ = timeout
         self.topgrep = TopGrep('Cpu')
+        self.stress_types = stress_types
 
     @staticmethod
     def get_stack():
@@ -293,20 +270,26 @@ class LimitedStress(object):
         return self.__tool_location__.get(tool, '')
 
     def run_stress(self):
-        stress = Stress(stress_location=self.get_location('stress'))
-        stress.set_stress_configuration(cpu_workers=1)
+        stress = Stress(location=self.get_location('stress'))
+        stress.__enable_process_switches__(self.stress_types)
+        for stype in self.stress_types:
+            stress.__set_switch_value__(stype, self.workers)
+
         stress_run = stress.run()
         self.add_process_to_stack(stress)
-
         return stress_run
 
     @staticmethod
-    def get_stress_pid(stress_output, stress_run):
-        while not re.search('\[[0-9]*\]?.forked', stress_output):
-            stress_output = stress_run.stdout.readline()
-        pid = remove_multiple_strings(('[', ']', 'forked'),
-                                      re.search('\[[0-9]*\]?.forked',
-                                                stress_output).group()).strip()
+    def get_stress_pid(stress_run, workers_count=1):
+        total_count = 0
+        matches = []
+        while total_count < workers_count:
+            output = stress_run.stdout.readline()
+            if re.search('\[[0-9]*\]?.forked', output):
+                total_count += 1
+                matches.append(re.search('\[[0-9]*\]?.forked', output).group())
+        pid = (x.strip()
+               for x in remove_multiple_strings(('[', ']', 'forked'), matches))
         return pid
 
     def fork_to_cpulimit(self, pid):
@@ -316,21 +299,22 @@ class LimitedStress(object):
         self.add_process_to_stack(cpulimit)
         self.add_pid_to_stack(pid)
 
-    def limit_pid(self, stress_output, stress_run):
-        pid = self.get_stress_pid(stress_output, stress_run)
-        global processes
-        if pid not in processes:
-            self.fork_to_cpulimit(pid)
-        else:
-            raise RuntimeError('Trying to fork pid that is already forked!')
+    def limit_pid(self, stress_run):
+        pids_forked = self.get_stress_pid(stress_run)
+        for pid in pids_forked:
+            global processes
+            if pid not in processes:
+                self.fork_to_cpulimit(pid)
+            else:
+                raise RuntimeError('Trying to fork pid '
+                                   'that is already forked!')
 
     def stress(self):
         self.update_load('old')
         stress_run = self.run_stress()
         self.add_process_to_stack(stress_run)
-        stress_output = stress_run.stdout.readline()
         # find the pid that stress forks and limit it
-        self.limit_pid(stress_output, stress_run)
+        self.limit_pid(stress_run)
         self.update_load('new')
 
     def update_load(self, load_choice):
@@ -386,6 +370,16 @@ class LimitedStress(object):
     def cpulimit_limit(self, new_value):
         self.__cpulimit_limit__ = 100 if new_value > 100 else new_value
 
+    @property
+    def limits(self):
+        return self.workers, self.cpulimit_limit
+
+    @limits.setter
+    def limits(self, value):
+        self.cpulimit_limit = value
+        #we need to spawn more workers to make it faster
+        self.workers = int(value / 100) if value > 100 else 1
+
     def calculate_velocity(self):
         """
             Calculate the last stress percentage velocity
@@ -407,15 +401,22 @@ class LimitedStress(object):
             print(current_velocity, new_limit, wanted_velocity)
         else:
             new_limit = 100
-        self.cpulimit_limit = new_limit
+        if new_limit < 0:
+            raise ValueError('New limit is < 0\nWe should exit')
+        self.limits = new_limit
 
     def run_and_keep_the_limit(self):
         while self.get_load(self.topgrep) + 2 < self.__limit__:
             print('Cpu load is currently at {0}'.
                   format(self.get_load(self.topgrep)))
             self.adjust_velocity(current_velocity=self.calculate_velocity())
-            self.stress()
+            try:
+                self.stress()
+            except ValueError:
+                break
         else:
+            print('Cpu load is currently at {0}'.
+                  format(self.get_load(self.topgrep)))
             self.stabilization_check(self.topgrep)
 
         if self.__timeout__:
@@ -450,8 +451,8 @@ def args_crafter():
     parser.add_argument('-cl', '--clocation', metavar='cpulimit Location',
                         help='Absolute path to cpulimit location',
                         default='', type=str)
-    parser.add_argument('-st', '--stype', help='Type of stress c(pu) / i(o)',
-                        default='cpu', choices=('cpu', 'c', 'io', 'i'))
+    parser.add_argument('-st', '--stype', help='Type of stress c(pu) / hd(d)',
+                        default='cpu', choices=('cpu', 'c', 'hdd', 'hd'))
 
 
 if __name__ == '__main__':
@@ -460,7 +461,9 @@ if __name__ == '__main__':
     args_parse = parser.parse_args()
 
     locations = location_crafter(args_parse.slocation, args_parse.clocation)
-    lstress = LimitedStress(args_parse.limit, args_parse.timeout,
+    #todo add multiple types as tuple
+    lstress = LimitedStress(('cpu',),
+                            limit=args_parse.limit, timeout=args_parse.timeout,
                             tool_location=locations)
 
     lstress.run_and_keep_the_limit()
