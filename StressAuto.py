@@ -288,8 +288,8 @@ class LimitedStress(object):
             if re.search('\[[0-9]*\]?.forked', output):
                 total_count += 1
                 matches.append(re.search('\[[0-9]*\]?.forked', output).group())
-        pid = (x.strip()
-               for x in remove_multiple_strings(('[', ']', 'forked'), matches))
+        pid = (x.strip() for x in
+               remove_multiple_strings(('[', ']', 'forked'), matches))
         return pid
 
     def fork_to_cpulimit(self, pid):
@@ -300,7 +300,7 @@ class LimitedStress(object):
         self.add_pid_to_stack(pid)
 
     def limit_pid(self, stress_run):
-        pids_forked = self.get_stress_pid(stress_run)
+        pids_forked = self.get_stress_pid(stress_run, self.workers)
         for pid in pids_forked:
             global processes
             if pid not in processes:
@@ -377,7 +377,7 @@ class LimitedStress(object):
     @limits.setter
     def limits(self, value):
         self.cpulimit_limit = value
-        #we need to spawn more workers to make it faster
+        # we need to spawn more workers to make it faster
         self.workers = int(value / 100) if value > 100 else 1
 
     def calculate_velocity(self):
@@ -397,7 +397,8 @@ class LimitedStress(object):
         """
         if current_velocity:
             wanted_velocity = self.__limit__ - self.__new_load__
-            new_limit = int((wanted_velocity/current_velocity)*self.__limit__)
+            new_limit = int(
+                (wanted_velocity / current_velocity) * self.__limit__)
             print(current_velocity, new_limit, wanted_velocity)
         else:
             new_limit = 100
@@ -461,7 +462,7 @@ if __name__ == '__main__':
     args_parse = parser.parse_args()
 
     locations = location_crafter(args_parse.slocation, args_parse.clocation)
-    #todo add multiple types as tuple
+    # todo add multiple types as tuple
     lstress = LimitedStress(('cpu',),
                             limit=args_parse.limit, timeout=args_parse.timeout,
                             tool_location=locations)
