@@ -43,40 +43,51 @@ class DebugLogPrint():
     choices = ''
     log_path = ''
 
-    def __set_choice__(self, choice):
+    @property
+    def choices(self):
+        return self.choices
+
+    @choices.setter
+    def choices(self, choice):
         if choice:
-            if choice == 'debug':
+            if choice == 'all':
                 self.choices = ('print', 'log')
             else:
                 self.choices = (choice,)
 
-    def __init__(self, print_choice=choices, log_path=''):
-        if print_choice not in ('', 'print', 'log', 'debug'):
+    def __init__(self, print_choice=choices, log_path='.'):
+        if print_choice not in ('', 'print', 'log', 'all', 'debug'):
             raise NotImplementedError('This choices is not supported!')
-        self.__set_choice__(print_choice)
+        self.choices = print_choice
         self.log_file_path = '{0}/debug.log'.format(log_path)
 
         logging.basicConfig(filename=self.log_file_path, level=logging.DEBUG)
 
     @staticmethod
-    def dprint(message):
-        print(message)
+    def dprint(message, level):
+        if level is not 'INFO':
+            print('[{0}]{1}'.format(level, message))
+        else:
+            print(message)
 
     @staticmethod
     def dlog(message, level):
-        if level == 'DEBUG':
-            logging.debug(message)
+        if level is 'INFO':
+            logging.INFO(message)
+        elif level is 'WARNING':
+            logging.warning(message)
+        elif level is 'ERROR':
+            logging.error(message)
         else:
-            logging.info(message) \
-                if level == 'INFO' else logging.warning(message)
+            logging.debug(message)
 
     def debuglogprint(self, message, level='INFO'):
-        if self.choices:
-            for choice in self.choices:
-                self.dprint(message) if choice == 'print' \
-                    else self.dlog(message, level)
-        else:
-            pass
+        if level is 'DEBUG' and 'debug' in self.choices:
+            self.dlog(message, level)
+            self.dprint(message, level)
+        elif level is not 'DEBUG':
+            self.dprint(message, level) if 'print' in self.choices else None
+            self.dlog(message, level) if 'log' in self.choices else None
 
 
 class TopGrep():
@@ -185,7 +196,6 @@ class SubProc():
     def run(self):
         prog = self.get_absolute_program_location()
         active_switches = self.get_active_switches()
-        print(prog + active_switches)
         self.__process__ = subprocess.Popen(prog + active_switches,
                                             stdout=subprocess.PIPE)
         return self.__process__
@@ -244,14 +254,16 @@ class LimitedStress(object):
     stress_types = None
     workers = 1
     topgrep = None
+    dprint = None
 
     def __init__(self, stress_types=('cpu',), limit=1, timeout=None,
-                 tool_location=dict):
+                 tool_location=dict, verbosity=None):
         self.__tool_location__ = tool_location
         self.__limit__ = self.__cpulimit_limit__ = limit
         self.__timeout__ = timeout
         self.topgrep = TopGrep('Cpu')
         self.stress_types = stress_types
+        self.dprint = DebugLogPrint(print_choice=verbosity)
 
     @staticmethod
     def get_stack():
@@ -339,27 +351,27 @@ class LimitedStress(object):
                                   toolbar_width=20,
                                   delimiters=(' ', ' '))
         load = self.get_load(topgrep)
-        print('\nTotal load: {0}'.format(load))
+        self.dprint.debuglogprint('\nTotal load: {0}'.format(load))
         return load
 
     def kill_normal_processes(self):
         kill_stack_processes(self.__subprocess_stack__)
 
-    @staticmethod
-    def kill_forked_processes():
+    def kill_forked_processes(self):
         global processes
         for fork_process in processes:
-            print('Killing fork process with pid {0}'.format(fork_process))
+            self.dprint.debuglogprint('Killing fork process with pid {0}'
+                                      .format(fork_process), level='DEBUG')
             os.kill(int(fork_process), signal.SIGKILL)
 
     def kill_everything(self):
-        print('Killing everything')
+        self.dprint.debuglogprint('Killing all processes', level='WARNING')
         self.kill_normal_processes()
         self.kill_forked_processes()
 
     def timeout_sleep(self):
-        print('Timeout is on\nSleeping {0} seconds'
-              .format(self.__timeout__))
+        self.dprint.debuglogprint('Timeout is on\nSleeping {0} seconds'.format(
+            self.__timeout__), 'DEBUG')
         time.sleep(self.__timeout__)
 
     @property
@@ -399,7 +411,9 @@ class LimitedStress(object):
             wanted_velocity = self.__limit__ - self.__new_load__
             new_limit = int(
                 (wanted_velocity / current_velocity) * self.__limit__)
-            print(current_velocity, new_limit, wanted_velocity)
+            self.dprint.debuglogprint((current_velocity, new_limit,
+                                      wanted_velocity),
+                                      level='DEBUG')
         else:
             new_limit = 100
         if new_limit < 0:
@@ -408,21 +422,24 @@ class LimitedStress(object):
 
     def run_and_keep_the_limit(self):
         while self.get_load(self.topgrep) + 2 < self.__limit__:
-            print('Cpu load is currently at {0}'.
-                  format(self.get_load(self.topgrep)))
+            self.dprint.debuglogprint('Cpu load is currently at {0}'.format(
+                self.get_load(self.topgrep)))
             self.adjust_velocity(current_velocity=self.calculate_velocity())
             try:
                 self.stress()
             except ValueError:
                 break
         else:
-            print('Cpu load is currently at {0}'.
-                  format(self.get_load(self.topgrep)))
-            self.stabilization_check(self.topgrep)
+            self.dprint.debuglogprint('Cpu load is currently at {0}'.format(
+                self.get_load(self.topgrep)))
+            if 'debug' in self.dprint.choices:
+                self.stabilization_check(self.topgrep)
+            else:
+                time.sleep(1)
 
         if self.__timeout__:
             self.timeout_sleep()
-        print('Target achieved')
+        self.dprint.debuglogprint('Target achieved')
         self.kill_everything()
 
 
@@ -455,6 +472,10 @@ def args_crafter():
     parser.add_argument('-st', '--stype', help='Type of stress c(pu) / hd(d)',
                         default='cpu', choices=('cpu', 'c', 'hdd', 'hd'))
 
+    parser.add_argument('-v', '--verbose', help='Verbosity level',
+                        default='',
+                        choices=('print', 'log', 'all', 'pdebug'))
+
 
 if __name__ == '__main__':
     args_crafter()
@@ -465,7 +486,8 @@ if __name__ == '__main__':
     # todo add multiple types as tuple
     lstress = LimitedStress(('cpu',),
                             limit=args_parse.limit, timeout=args_parse.timeout,
-                            tool_location=locations)
+                            tool_location=locations,
+                            verbosity=args_parse.verbose)
 
     lstress.run_and_keep_the_limit()
 
