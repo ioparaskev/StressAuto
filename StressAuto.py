@@ -44,14 +44,14 @@ class DebugLogPrint(object):
     def __init__(self, print_choice='', log_path='.'):
         if print_choice not in ('', 'print', 'log', 'all', 'debug'):
             raise NotImplementedError('This choices is not supported!')
-        self.choices = print_choice
+        self.__choices__ = print_choice
         self.setup_logging(log_path)
 
     def setup_logging(self, log_path):
         if ('log' or 'debug') in self.choices:
             file_name = 'log' if 'log' in self.choices else 'debug'
-            self.log_path = '{0}/{1}{2}.log'\
-                .format(log_path, __file__, file_name)
+            self.log_path = '{0}/{1}.log'\
+                .format(log_path, file_name)
             logging.basicConfig(filename=self.log_path, level=logging.DEBUG)
 
     @property
@@ -64,15 +64,15 @@ class DebugLogPrint(object):
 
     @property
     def choices(self):
-        return self.choices
+        return self.__choices__
 
     @choices.setter
     def choices(self, choice):
         if choice:
             if choice == 'all':
-                self.choices = ('print', 'log')
+                self.__choices__ = ('print', 'log')
             else:
-                self.choices = (choice,)
+                self.__choices__ = (choice,)
 
     @staticmethod
     def dprint(message, level):
@@ -259,16 +259,17 @@ class LimitedStress(object):
     __subprocess_stack__ = []
     __tool_location__ = dict
     __limit__ = 1
-    __cpulimit_limit__ = 1
+    # __cpulimit_limit__ = 1
     __timeout__ = None
     __old_load__ = __new_load__ = None
     stress_types = None
-    workers = 1
+    # workers = 1
     topgrep = None
     dprint = None
 
     def __init__(self, stress_types=('cpu',), limit=1, timeout=None,
                  tool_location=dict, verbosity=None):
+        self.__workers__ = 1
         self.__tool_location__ = tool_location
         self.__limit__ = self.__cpulimit_limit__ = limit
         self.__timeout__ = timeout
@@ -376,7 +377,7 @@ class LimitedStress(object):
             os.kill(int(fork_process), signal.SIGKILL)
 
     def kill_everything(self):
-        self.dprint.debuglogprint('Killing all processes', level='WARNING')
+        self.dprint.debuglogprint('Exiting', level='WARNING')
         self.kill_normal_processes()
         self.kill_forked_processes()
 
@@ -402,6 +403,14 @@ class LimitedStress(object):
         self.cpulimit_limit = value
         # we need to spawn more workers to make it faster
         self.workers = int(value / 100) if value > 100 else 1
+
+    @property
+    def workers(self):
+        return self.__workers__
+
+    @workers.setter
+    def workers(self, value):
+        self.__workers__ = value if value > 1 else 1
 
     def calculate_velocity(self):
         """
@@ -441,12 +450,12 @@ class LimitedStress(object):
             except ValueError:
                 break
         else:
-            self.dprint.debuglogprint('Cpu load is currently at {0}'.format(
-                self.get_load(self.topgrep)))
             if 'debug' in self.dprint.choices:
                 self.stabilization_check(self.topgrep)
             else:
                 time.sleep(1)
+            self.dprint.debuglogprint('Cpu load is currently at {0}'.format(
+                self.get_load(self.topgrep)))
 
         if self.__timeout__:
             self.timeout_sleep()
