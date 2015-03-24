@@ -35,13 +35,32 @@ def kill_stack_processes(proc_stack):
         process.kill()
 
 
-class DebugLogPrint():
+class DebugLogPrint(object):
     """
         A class that either prints/logs/both/supress messages
         Replaces print and log calls
     """
-    choices = ''
-    log_path = ''
+
+    def __init__(self, print_choice='', log_path='.'):
+        if print_choice not in ('', 'print', 'log', 'all', 'debug'):
+            raise NotImplementedError('This choices is not supported!')
+        self.choices = print_choice
+        self.setup_logging(log_path)
+
+    def setup_logging(self, log_path):
+        if ('log' or 'debug') in self.choices:
+            file_name = 'log' if 'log' in self.choices else 'debug'
+            self.log_path = '{0}/{1}{2}.log'\
+                .format(log_path, __file__, file_name)
+            logging.basicConfig(filename=self.log_path, level=logging.DEBUG)
+
+    @property
+    def log_path(self):
+        return self.log_path
+
+    @log_path.setter
+    def log_path(self, path):
+        self.log_path = path
 
     @property
     def choices(self):
@@ -54,14 +73,6 @@ class DebugLogPrint():
                 self.choices = ('print', 'log')
             else:
                 self.choices = (choice,)
-
-    def __init__(self, print_choice=choices, log_path='.'):
-        if print_choice not in ('', 'print', 'log', 'all', 'debug'):
-            raise NotImplementedError('This choices is not supported!')
-        self.choices = print_choice
-        self.log_file_path = '{0}/debug.log'.format(log_path)
-
-        logging.basicConfig(filename=self.log_file_path, level=logging.DEBUG)
 
     @staticmethod
     def dprint(message, level):
