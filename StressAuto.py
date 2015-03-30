@@ -218,10 +218,10 @@ class TopGrep():
 
 class SubProc():
     """
-        Process configuration:
-        location : location string
-        process_name : process name
-        switches : { switch_name : (enabled, switch_flag, value) }
+    Process configuration:
+    location : location string
+    process_name : process name
+    switches : dict { switch_name : (enabled, switch_flag, value) }
     """
     process_configuration = {'location': '',
                              'process_name': '',
@@ -229,17 +229,37 @@ class SubProc():
     __process__ = None
 
     def __init__(self, process_name, location=None, switches=None):
+        """
+        Create with name of process to run, location of process if not global
+        and custom switches for future custom process support
+        :param process_name: str
+        :param location: str
+        :param switches: dict
+        """
         self.process_configuration['process_name'] = process_name
         self.__set_location__(location)
         self.process_configuration['switches'] = switches
 
     def __set_location__(self, location=None):
+        """
+        Set location of process
+        :param location: str
+        """
         self.process_configuration['location'] = location if location else ''
 
     def get_location(self):
+        """
+        Return location of process
+        :return: str
+        """
         return self.process_configuration['location']
 
     def __enable_process_switches__(self, switch_names):
+        """
+        Enable switches of process
+        :param switch_names: tuple with switch names to enable
+        :raise ValueError: if no such switch exists
+        """
         for name in switch_names:
             try:
                 self.process_configuration['switches'][name][0] = True
@@ -247,6 +267,12 @@ class SubProc():
                 raise ValueError('No such switch exists!')
 
     def __set_switch_value__(self, switch_name, value):
+        """
+        Specify custom value for switch
+        :param switch_name: str name of switch
+        :param value: obj new value
+        :raise ValueError: if no such switch exists
+        """
         try:
             self.process_configuration['switches'][switch_name][2] = str(value)
         except ValueError:
@@ -256,6 +282,10 @@ class SubProc():
 
     # todo change active switching to ommit value needless flags
     def get_active_switches(self):
+        """
+        Return switches that are active for process
+        :return: tuple
+        """
         active_switches = []
         for switch in self.process_configuration['switches'].keys():
             if self.process_configuration['switches'][switch][0]:
