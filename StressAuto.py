@@ -158,6 +158,14 @@ class TopGrep():
     grep = ['grep']
 
     def __init__(self, process_name, show_lines_before=None, exclude=None):
+        """
+        Filter by process name
+        Select number of lines to show before grep
+        Exclude specific string
+        :param process_name: str
+        :param show_lines_before: int
+        :param exclude: str
+        """
         self.grep.extend(('-B', show_lines_before)) \
             if show_lines_before else None
 
@@ -166,11 +174,20 @@ class TopGrep():
         if process_name not in self.grep:
             self.grep.append(process_name)
 
+    @property
     def get_configuration(self):
+        """
+        Return the flag configuration of top and grep as tuple
+        :return: tuple
+        """
         return self.top_configuration, self.grep
 
     def run(self):
-        topconf, grepconf = self.get_configuration()
+        """
+        Opens a subprocess based on the configuration set up
+        :return: subprocess
+        """
+        topconf, grepconf = self.get_configuration
 
         top = subprocess.Popen(topconf, stdout=subprocess.PIPE)
         topgrep = subprocess.Popen(grepconf, stdin=top.stdout,
@@ -180,11 +197,21 @@ class TopGrep():
 
     @staticmethod
     def get_clear_percent(top_strip):
+        """
+        Strips unwanted chars from string and returns the percent value
+        :param top_strip: str
+        :return: str
+        """
         clear_percent = (''.join(x for x in top_strip
                                  if (x.isdigit() or x == '.')))
         return clear_percent
 
     def get_cpuload(self, top_grep_cpu_proc):
+        """
+        cpu percent load
+        :param top_grep_cpu_proc: subprocess
+        :return: str
+        """
         return self.get_clear_percent(
             top_strip=top_grep_cpu_proc.stdout.readlines()[1].split()[1])
 
