@@ -89,10 +89,17 @@ class DebugLogPrint(object):
 
     @property
     def choices(self):
+        """
+        :return: tuple
+        """
         return self.__choices__
 
     @choices.setter
     def choices(self, choice):
+        """
+        Set the correct choices as a tuple
+        :param choice: str
+        """
         if choice:
             if choice == 'all':
                 self.__choices__ = ('print', 'log')
@@ -101,12 +108,22 @@ class DebugLogPrint(object):
 
     @staticmethod
     def dprint(message, level):
+        """
+        Print overloading
+        :param message: str
+        :param level: str
+        """
         if level is not 'INFO':
             print('[{0}] {1}'.format(level, message))
         else:
             print(message)
 
     def dlog(self, message, level):
+        """
+        Log overloading
+        :param message: str
+        :param level: str
+        """
         timestamp_msg = '[{0}] {1}'.format(
             datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"), message)
         if level is 'INFO':
@@ -119,6 +136,11 @@ class DebugLogPrint(object):
             self.logger.debug(timestamp_msg)
 
     def debuglogprint(self, message, level='INFO'):
+        """
+        Decides wheather to print/log or debug
+        :param message: str
+        :param level: str
+        """
         if level is 'DEBUG' and 'debug' in self.choices:
             self.dlog(message, level)
             self.dprint(message, level)
