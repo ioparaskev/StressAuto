@@ -480,7 +480,7 @@ def location_crafter(*args):
 
 
 def args_crafter():
-    global parser
+
     parser = argparse.ArgumentParser(prog='StressAuto',
                                      description='Simple stress tool wrapper',
                                      usage='%(prog)s [options]')
@@ -501,12 +501,12 @@ def args_crafter():
     parser.add_argument('-v', '--verbose', help='Verbosity level',
                         default='',
                         choices=('print', 'log', 'all', 'pdebug'))
-
+    return parser
 
 if __name__ == '__main__':
-    args_crafter()
+    parse = args_crafter()
 
-    args_parse = parser.parse_args()
+    args_parse = parse.parse_args()
 
     locations = location_crafter(args_parse.slocation, args_parse.clocation)
     # todo add multiple types as tuple
