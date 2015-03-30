@@ -1,6 +1,7 @@
 import subprocess
 import re
 import time
+import datetime
 import logging
 import os
 import signal
@@ -81,19 +82,21 @@ class DebugLogPrint(object):
     @staticmethod
     def dprint(message, level):
         if level is not 'INFO':
-            print('[{0}]{1}'.format(level, message))
+            print('[{0}] {1}'.format(level, message))
         else:
             print(message)
 
     def dlog(self, message, level):
+        timestamp_msg = '[{0}] {1}'.format(
+            datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"), message)
         if level is 'INFO':
-            self.logger.info(message)
+            self.logger.info(timestamp_msg)
         elif level is 'WARNING':
-            self.logger.warning(message)
+            self.logger.warning(timestamp_msg)
         elif level is 'ERROR':
-            self.logger.error(message)
+            self.logger.error(timestamp_msg)
         else:
-            self.logger.debug(message)
+            self.logger.debug(timestamp_msg)
 
     def debuglogprint(self, message, level='INFO'):
         if level is 'DEBUG' and 'debug' in self.choices:
