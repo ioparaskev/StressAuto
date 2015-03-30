@@ -157,12 +157,11 @@ class TopGrep():
     top_configuration = ['top', '-n', '2' '-b']
     grep = ['grep']
 
-    def __init__(self, process_name, limit_lines_before=None, exclude=None):
-        if limit_lines_before:
-            self.grep.extend(('-B', limit_lines_before))
+    def __init__(self, process_name, show_lines_before=None, exclude=None):
+        self.grep.extend(('-B', show_lines_before)) \
+            if show_lines_before else None
 
-        if exclude:
-            self.grep.extend(('-v', '\'', exclude, '\''))
+        self.grep.extend(('-v', '\'', exclude, '\'')) if exclude else None
 
         if process_name not in self.grep:
             self.grep.append(process_name)
