@@ -32,6 +32,11 @@ def remove_multiple_strings(words, text):
 
 
 def kill_stack_processes(proc_stack):
+    """
+    Kill every subprocess in given stack
+    :param proc_stack:
+    :return:
+    """
     for process in proc_stack:
         process.kill()
 
@@ -45,12 +50,21 @@ class DebugLogPrint(object):
     __log_path__ = '.'
 
     def __init__(self, print_choice='', log_path=__log_path__):
+        """
+        Default print choice is no print/log, default log path is app path
+        :param print_choice: str
+        :param log_path: str
+        :raise NotImplementedError: print choice not in accepted values
+        """
         if print_choice not in ('', 'print', 'log', 'all', 'debug'):
             raise NotImplementedError('This choices is not supported!')
         self.choices = print_choice
         self.logger = self.setup_logging(log_path)
 
     def setup_logging(self, log_path):
+        """
+        Setup the logging path
+        """
         if ('log' or 'debug') in self.choices:
             file_name = 'log' if 'log' in self.choices else 'debug'
             self.log_path = '{0}/{1}.log'\
@@ -61,10 +75,16 @@ class DebugLogPrint(object):
 
     @property
     def log_path(self):
+        """
+        :return: str
+        """
         return self.__log_path__
 
     @log_path.setter
     def log_path(self, path):
+        """
+        :param path: str
+        """
         self.__log_path__ = path
 
     @property
