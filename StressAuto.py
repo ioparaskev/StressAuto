@@ -40,12 +40,14 @@ class DebugLogPrint(object):
         A class that either prints/logs/both/supress messages
         Replaces print and log calls
     """
+    __choices__ = None
+    __log_path__ = '.'
 
-    def __init__(self, print_choice='', log_path='.'):
+    def __init__(self, print_choice='', log_path=__log_path__):
         if print_choice not in ('', 'print', 'log', 'all', 'debug'):
             raise NotImplementedError('This choices is not supported!')
-        self.__choices__ = print_choice
-        self.setup_logging(log_path)
+        self.choices = print_choice
+        self.logger = self.setup_logging(log_path)
 
     def setup_logging(self, log_path):
         if ('log' or 'debug') in self.choices:
@@ -53,14 +55,16 @@ class DebugLogPrint(object):
             self.log_path = '{0}/{1}.log'\
                 .format(log_path, file_name)
             logging.basicConfig(filename=self.log_path, level=logging.DEBUG)
+            return logging
+        return None
 
     @property
     def log_path(self):
-        return self.log_path
+        return self.__log_path__
 
     @log_path.setter
     def log_path(self, path):
-        self.log_path = path
+        self.__log_path__ = path
 
     @property
     def choices(self):
@@ -81,16 +85,15 @@ class DebugLogPrint(object):
         else:
             print(message)
 
-    @staticmethod
-    def dlog(message, level):
+    def dlog(self, message, level):
         if level is 'INFO':
-            logging.INFO(message)
+            self.logger.info(message)
         elif level is 'WARNING':
-            logging.warning(message)
+            self.logger.warning(message)
         elif level is 'ERROR':
-            logging.error(message)
+            self.logger.error(message)
         else:
-            logging.debug(message)
+            self.logger.debug(message)
 
     def debuglogprint(self, message, level='INFO'):
         if level is 'DEBUG' and 'debug' in self.choices:
@@ -383,7 +386,7 @@ class LimitedStress(object):
 
     def timeout_sleep(self):
         self.dprint.debuglogprint('Timeout is on\nSleeping {0} seconds'.format(
-            self.__timeout__), 'DEBUG')
+            self.__timeout__), 'WARNING')
         time.sleep(self.__timeout__)
 
     @property
