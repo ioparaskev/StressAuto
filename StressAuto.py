@@ -295,7 +295,7 @@ class SubProc():
         return tuple(x for x in active_switches if x)
 
     def get_absolute_program_location(self):
-        if self.process_configuration['location'] is 'global':
+        if not self.process_configuration['location']:
             # app is installed on system
             return self.process_configuration['process_name']
 
