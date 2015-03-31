@@ -237,22 +237,50 @@ class SubProc():
         :param switches: dict
         """
         self.process_configuration['process_name'] = process_name
-        self.__set_location__(location)
+        if location:
+            try:
+                self.location = location
+            except ValueError:
+                exit(1)
         self.process_configuration['switches'] = switches
 
-    def __set_location__(self, location=None):
-        """
-        Set location of process
-        :param location: str
-        """
-        self.process_configuration['location'] = location if location else ''
+    @property
+    def process_name(self):
+        return self.process_configuration['process_name']
 
-    def get_location(self):
+    @process_name.setter
+    def process_name(self, value):
+        self.process_configuration['process_name'] = value
+
+    @property
+    def location(self):
         """
         Return location of process
         :return: str
         """
         return self.process_configuration['location']
+
+    @location.setter
+    def location(self, loc=None):
+        """
+        Set location of process
+        :param loc: str
+        """
+        if self.process_name in os.listdir(loc):
+            self.process_configuration['location'] = loc if loc != '.' \
+                else './{}'.format(os.path.realpath(__file__))
+        else:
+            raise ValueError('Program name not found!')
+
+    @property
+    def absolute_location(self):
+        if self.location:
+            absolute_loc = tuple(['{0}/{1}'.format(self.location,
+                                                   self.process_name)])
+        else:
+            #guess that program is global (check run() exception handling)
+            absolute_loc = tuple([self.process_name, ])
+        return absolute_loc
 
     def __enable_process_switches__(self, switch_names):
         """
@@ -294,25 +322,30 @@ class SubProc():
                      self.process_configuration['switches'][switch][2]))
         return tuple(x for x in active_switches if x)
 
-    def get_absolute_program_location(self):
-        if not self.process_configuration['location']:
-            # app is installed on system
-            return self.process_configuration['process_name']
-
-        # if path append path, else ./ local run
-        path = self.process_configuration['location'] \
-            if self.process_configuration['location'] else '.'
-        return tuple(['{0}/{1}'.format(path,
-                                       self.process_configuration[
-                                           'process_name'
-                                       ])])
-
     # todo add configuration checking first
-    def run(self):
-        prog = self.get_absolute_program_location()
-        active_switches = self.get_active_switches()
-        self.__process__ = subprocess.Popen(prog + active_switches,
+    def process_open(self, switches):
+        self.__process__ = subprocess.Popen(self.absolute_location + switches,
                                             stdout=subprocess.PIPE)
+
+    def run(self):
+        active_switches = self.get_active_switches()
+        try:
+            self.process_open(active_switches)
+        except OSError:
+            if not self.location:
+                print('Location of program is not in global path\n'
+                      'Trying local')
+                self.location = '.'
+                try:
+                    self.process_open(active_switches)
+                except OSError:
+                    print('Process name was not found either on global path, '
+                          'or local\nCheck the process name and try again')
+                    exit(1)
+            else:
+                print('Process name was not found on {} \nCheck the process '
+                      'name and try again'.format(self.absolute_location))
+                exit(1)
         return self.__process__
 
     def kill(self, verbose=None):
@@ -421,7 +454,7 @@ class LimitedStress(object):
         return pid
 
     def fork_to_cpulimit(self, pid):
-        cpulimit = CpuLimit()
+        cpulimit = CpuLimit(location=self.get_location('cpulimit'))
         cpulimit.set_cpulimit_pid_limit(pid=pid, limit=self.__cpulimit_limit__)
         cpulimit.run()
         self.add_process_to_stack(cpulimit)
