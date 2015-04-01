@@ -7,6 +7,7 @@ import os
 import signal
 import progress_bar
 import argparse
+import sys
 
 processes = []
 
@@ -339,13 +340,13 @@ class SubProc():
                 try:
                     self.process_open(active_switches)
                 except OSError:
-                    print('Process name was not found either on global path, '
-                          'or local\nCheck the process name and try again')
-                    exit(1)
+                    raise OSError('Process name was not found either on '
+                                  'global path, or local\nCheck the process '
+                                  'name and try again')
             else:
-                print('Process name was not found on {} \nCheck the process '
-                      'name and try again'.format(self.absolute_location))
-                exit(1)
+                raise OSError('Process name was not found on {} \nCheck the '
+                              'process name and try again'
+                              .format(self.absolute_location))
         return self.__process__
 
     def kill(self, verbose=None):
@@ -458,13 +459,13 @@ class LimitedStress(object):
         cpulimit.set_cpulimit_pid_limit(pid=pid, limit=self.__cpulimit_limit__)
         cpulimit.run()
         self.add_process_to_stack(cpulimit)
-        self.add_pid_to_stack(pid)
 
     def limit_pid(self, stress_run):
         pids_forked = self.get_stress_pid(stress_run, self.workers)
         for pid in pids_forked:
             global processes
             if pid not in processes:
+                self.add_pid_to_stack(pid)
                 self.fork_to_cpulimit(pid)
             else:
                 raise RuntimeError('Trying to fork pid '
@@ -586,6 +587,11 @@ class LimitedStress(object):
                 self.stress()
             except ValueError:
                 break
+            except OSError as exc:
+                self.kill_everything()
+                self.dprint.debuglogprint(exc.message, level='ERROR')
+                sys.exit(1)
+
         else:
             if 'debug' in self.dprint.choices:
                 self.stabilization_check(self.topgrep)
